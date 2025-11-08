@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Recados</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Painel de Recados</h1>
+        </header>
+        
+        <div class="main-content">
+            <div class="card">
+                <h2 class="card-title">Criar Novo Recado</h2>
+                
+                <div class="form-group">
+                    <label for="messageEditor">Mensagem:</label>
+                    <div class="editor-container">
+                        <div class="toolbar">
+                            <button type="button" data-command="bold"><b>B</b></button>
+                            <button type="button" data-command="italic"><i>I</i></button>
+                            <button type="button" data-command="underline"><u>U</u></button>
+                            <button type="button" data-command="insertUnorderedList">• Lista</button>
+                            <button type="button" data-command="insertOrderedList">1. Lista</button>
+                        </div>
+                        <div id="messageEditor" contenteditable="true"></div>
+                    </div>
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="includeClock">
+                    <label for="includeClock">Incluir relógio no aviso</label>
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn btn-primary" id="generateBtn">
+                        <span>Gerar e Mostrar Aviso</span>
+                    </button>
+                    <button class="btn btn-warning" id="saveBtn">
+                        <span>Salvar no Histórico</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2 class="card-title">Histórico de Avisos</h2>
+                
+                <div class="action-buttons" style="margin-bottom: 1rem;">
+                    <button class="btn btn-danger" id="clearHistoryBtn">
+                        <span>Limpar Todo Histórico</span>
+                    </button>
+                </div>
+                
+                <div class="history-list" id="historyList">
+                    <!-- Os itens do histórico serão inseridos aqui via JavaScript -->
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Desenvolvido por Thiago G. Traue ∙ <a href="https://github.com/traue/painel_avisos" target="_blank">Repositório</a></p>
+        </footer>
+    </div>
+    
+    <!-- Tela de exibição do aviso em tela cheia -->
+    <div id="announcementDisplay">
+        <button class="close-btn" id="closeBtn">×</button>
+        <div class="announcement-content">
+            <div class="announcement-text" id="announcementText"></div>
+            <div class="announcement-clock" id="announcementClock"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
