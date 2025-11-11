@@ -12,8 +12,12 @@ const closeBtn = document.getElementById('closeBtn');
 const toolbarButtons = document.querySelectorAll('.toolbar button');
 
 // Variáveis
-let clockInterval;
+let clockInterval = null;
 let isFullscreen = false;
+// Offset em ms entre hora do servidor público e hora local (serverTime = Date.now() + serverTimeOffset)
+let serverTimeOffset = 0;
+// Endpoint público (WorldTimeAPI - usa IP do cliente para determinar timezone)
+const PUBLIC_TIME_ENDPOINT = 'https://worldtimeapi.org/api/ip';
 
 // Carregar histórico do localStorage ao iniciar
 document.addEventListener('DOMContentLoaded', function() {
@@ -46,7 +50,86 @@ function formatText(command) {
     messageEditor.focus();
 }
 
-// Gerar e mostrar aviso
+// ---------- Clock / Sincronização com servidor público ----------
+
+// Tenta buscar hora pública (WorldTimeAPI).
+// Aguarda JSON com campo 'datetime' (ISO). Retorna { success: boolean, serverNow: Date | null }
+async function fetchPublicTime() {
+    try {
+        const res = await fetch(PUBLIC_TIME_ENDPOINT, { cache: 'no-store' });
+        if (!res.ok) throw new Error('Resposta não OK: ' + res.status);
+        const data = await res.json();
+        // WorldTimeAPI devolve 'datetime' (ISO) e também 'unixtime'
+        // Checamos 'datetime' primeiro; se não existir, tentamos 'unixtime'
+        if (data && data.datetime) {
+            const serverNow = new Date(data.datetime);
+            if (isNaN(serverNow.getTime())) throw new Error('datetime inválido');
+            return { success: true, serverNow };
+        } else if (data && typeof data.unixtime === 'number') {
+            // unixtime é em segundos
+            return { success: true, serverNow: new Date(data.unixtime * 1000) };
+        } else {
+            throw new Error('Resposta sem campos de tempo válidos');
+        }
+    } catch (err) {
+        console.warn('Não foi possível obter hora pública:', err);
+        return { success: false, serverNow: null };
+    }
+}
+
+// Inicia ou reinicia o relógio exibido.
+// Se includeClock for false, garante que o clock foi parado e escondido.
+// Se true: tenta sincronizar com servidor público; caso falhe, usa hora local.
+// Sempre limpa qualquer intervalo anterior antes de criar outro.
+async function startClock(includeClock) {
+    // Limpa intervalo anterior se existir
+    if (clockInterval) {
+        clearInterval(clockInterval);
+        clockInterval = null;
+    }
+
+    if (!includeClock) {
+        announcementClock.style.display = 'none';
+        serverTimeOffset = 0; // reset offset
+        return;
+    }
+
+    // Mostra imediatamente (evita "piscar")
+    announcementClock.style.display = 'block';
+
+    // Tenta buscar hora pública e calcular offset
+    const result = await fetchPublicTime();
+    if (result.success && result.serverNow) {
+        const clientNow = new Date();
+        serverTimeOffset = result.serverNow.getTime() - clientNow.getTime();
+        updateClock();
+        // Garante que não criamos múltiplos intervals
+        if (clockInterval) clearInterval(clockInterval);
+        clockInterval = setInterval(updateClock, 1000);
+    } else {
+        // fallback para hora local (offset = 0)
+        serverTimeOffset = 0;
+        updateClock();
+        if (clockInterval) clearInterval(clockInterval);
+        clockInterval = setInterval(updateClock, 1000);
+    }
+}
+
+// Atualizar relógio (usa serverTimeOffset se disponível)
+function updateClock() {
+    const now = new Date(Date.now() + serverTimeOffset);
+    const timeString = now.toLocaleTimeString('pt-BR');
+    announcementClock.textContent = timeString;
+}
+
+// Retorna um objeto Date representando "agora" considerando o offset.
+// Útil para salvar timestamps sincronizados.
+function nowWithOffset() {
+    return new Date(Date.now() + serverTimeOffset);
+}
+
+// ---------- Geração / Exibição / Fechamento de aviso ----------
+
 function generateAnnouncement() {
     const content = messageEditor.innerHTML;
     if (!content.trim()) {
@@ -54,18 +137,16 @@ function generateAnnouncement() {
         return;
     }
     
-    // Salvar automaticamente no histórico
+    // Salvar automaticamente no histórico (silent = true para não mostrar alerta)
     saveToHistory(true);
     
     announcementText.innerHTML = content;
     
     if (includeClockCheckbox.checked) {
-        announcementClock.style.display = 'block';
-        updateClock();
-        clockInterval = setInterval(updateClock, 1000);
+        // Inicia o clock (tenta servidor público e, se não, usa local)
+        startClock(true);
     } else {
-        announcementClock.style.display = 'none';
-        if (clockInterval) clearInterval(clockInterval);
+        startClock(false);
     }
     
     // Entrar em modo tela cheia
@@ -101,7 +182,10 @@ function closeAnnouncement() {
     
     announcementDisplay.style.display = 'none';
     document.body.classList.remove('fullscreen-mode');
-    if (clockInterval) clearInterval(clockInterval);
+    if (clockInterval) {
+        clearInterval(clockInterval);
+        clockInterval = null;
+    }
 }
 
 // Sair do modo tela cheia
@@ -121,22 +205,23 @@ function closeFullscreen() {
 
 // Manipulador para quando o usuário sai do modo tela cheia
 function exitHandler() {
-    if (!document.fullscreenElement && !document.webkitIsFullScreen && !document.mozFullScreen && !document.msFullscreenElement) {
+    // Compatibilidade com vários navegadores
+    const fs = document.fullscreenElement || document.webkitIsFullScreen || document.mozFullScreen || document.msFullscreenElement;
+    if (!fs) {
         isFullscreen = false;
         announcementDisplay.style.display = 'none';
         document.body.classList.remove('fullscreen-mode');
-        if (clockInterval) clearInterval(clockInterval);
+        if (clockInterval) {
+            clearInterval(clockInterval);
+            clockInterval = null;
+        }
     }
 }
 
-// Atualizar relógio
-function updateClock() {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('pt-BR');
-    announcementClock.textContent = timeString;
-}
+// ---------- Histórico (salvar / carregar / excluir) ----------
 
 // Salvar no histórico
+// se silent === true não mostra alert de sucesso
 function saveToHistory(silent = false) {
     const content = messageEditor.innerHTML;
     if (!content.trim()) {
@@ -147,7 +232,8 @@ function saveToHistory(silent = false) {
     }
     
     const includeClock = includeClockCheckbox.checked;
-    const timestamp = new Date().toLocaleString('pt-BR');
+    // Usa agora com offset (serverTimeOffset) se houver
+    const timestamp = nowWithOffset().toLocaleString('pt-BR');
     
     // Recuperar histórico atual
     let history = JSON.parse(localStorage.getItem('announcementHistory')) || [];
@@ -157,7 +243,7 @@ function saveToHistory(silent = false) {
         content: content,
         includeClock: includeClock,
         timestamp: timestamp,
-        id: Date.now() // ID único baseado no timestamp
+        id: Date.now() // ID único baseado no timestamp local (ok para a maioria dos casos)
     });
     
     // Salvar no localStorage
@@ -208,12 +294,10 @@ function replayAnnouncement(id) {
         announcementText.innerHTML = item.content;
         
         if (item.includeClock) {
-            announcementClock.style.display = 'block';
-            updateClock();
-            clockInterval = setInterval(updateClock, 1000);
+            // Inicia clock (tentará sincronizar)
+            startClock(true);
         } else {
-            announcementClock.style.display = 'none';
-            if (clockInterval) clearInterval(clockInterval);
+            startClock(false);
         }
         
         // Entrar em modo tela cheia

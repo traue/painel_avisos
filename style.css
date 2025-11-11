@@ -132,8 +132,8 @@ label {
 .checkbox-group {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
+    gap: 1rem;
+    margin: 1.5rem 0;
 }
 
 .checkbox-group input {
@@ -144,6 +144,58 @@ label {
 .checkbox-group label {
     margin-bottom: 0;
     color: #1d3557;
+}
+
+.ios-toggle {
+    position: relative;
+    display: inline-block;
+    width: 51px;
+    height: 31px;
+    cursor: pointer;
+}
+
+.ios-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    border-radius: 31px;
+    transition: 0.3s ease;
+}
+
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    height: 27px;
+    width: 27px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.ios-toggle input:checked + .toggle-slider {
+    background-color: #34c759;
+}
+
+.ios-toggle input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+}
+
+.toggle-label {
+    font-size: 1rem;
+    color: #333;
+    user-select: none;
 }
 
 .btn {
